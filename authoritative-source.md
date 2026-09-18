@@ -2,6 +2,66 @@
 
 **Status:** gap note for discussion — revised 2026-09-18
 
+## Short answers
+
+**Can a verifier check today that an attestation came from the party that is the source for it?**
+No — not automatically, and not for either example raised in the group. A verifier can establish
+that an attestation is **authentic**: signed by a real, registered provider that appears on a
+trusted list. It cannot establish that the issuer is **authoritative**: the right party to assert
+that particular fact.
+
+**1. How do I know which organisation should issue a Finnish VAT-ID?**
+Today, nothing machine-readable says so.
+
+- The designed route is for the Finnish Tax Administration to issue it as a Pub-EAA, with a `QcPSB`
+  statement in its signing certificate naming the VAT register. That route is blocked: `QcPSB` has
+  no OID, so no certificate can carry it in a form other verifiers recognise (Finding 1).
+- Even with the OID, nothing links the VAT-ID attestation type to the VAT register. Neither the
+  catalogues nor `QcPSB` hold that link (Finding 5).
+- What works now is partial and manual: require the issuer to be on the Pub-EAA providers list
+  (which narrows it to public sector bodies, not to the Tax Administration), or configure the
+  expected `organizationIdentifier` in the verifier by hand (which presumes the answer is already
+  known).
+
+**2. How can I check that an IBAN attestation was issued by the bank responsible for that account?**
+Not at any layer of the framework. A verifier can check that the issuer is a qualified provider on
+a national trusted list. To check that it is *the* bank for the account, it would have to:
+
+- derive the bank from the IBAN, whose layout is national and differs per country;
+- resolve that bank to its legal identity (LEI) in a national banking register;
+- compare the LEI with the issuer's certificate.
+
+The last step is a string comparison. The first two lie outside eIDAS, and no EU-wide service
+performs them (Annex D, Annex H).
+
+**3. Should the attestation rulebook contain something? Is this a Member State registration
+responsibility?**
+
+- **Rulebook: yes.** It is the only place that can state "this organisation is authoritative for
+  this attestation type" without any specification change. It is human-readable by definition
+  (ARF ARB_33), however, so a verifier cannot use it. Automatic checking also needs a
+  machine-readable field in the attestation scheme (TS11 `SchemaMeta`), which does not exist yet
+  (Recommendation 1).
+- **Registrars: not today.** Under CIR (EU) 2025/848 they verify that a provider is *entitled*
+  (for example, that it is a QEAA provider), not that it is the *authoritative* source for each
+  attestation type it declares in `providesAttestations` — and they have nothing to check that
+  against. Once rulebooks state the authoritative issuer, registrars would. The article wording
+  still needs confirming (open item 1).
+
+**4. Can the trust group make this clear?**
+Yes, and it should state the gap plainly rather than imply it is covered. It can recommend:
+
+- **Rulebooks** state the authoritative issuer for each attestation type. Possible now
+  (Recommendation 1a).
+- **A TS11 change request** to the Commission for a machine-readable authority field in the
+  Catalogue of Schemes, so verifiers can check automatically (Recommendation 1b, open item 6).
+- **ETSI ESI** assigns the `QcPSB` OID and defines an equivalent statement for QEAA issuers (open
+  items 4–5, escalation draft).
+- **IBAN** is stated as a banking-sector dependency that trust-layer work cannot solve
+  (Recommendation 2).
+- **In the pilot**, WE BUILD writes this into the rulebooks of its own pilot attestations and
+  configures verifiers by hand, demonstrating the check before any specification changes.
+
 ## Summary
 
 A mechanism for binding an issuer to an authentic source **is specified** for public-sector
