@@ -18,9 +18,10 @@ completing an existing design; the private-sector gap is one of missing design.
 | PID | separate regime (Commission PID provider list) | Status only |
 
 The Catalogue of Attributes and Catalogue of Schemes (TS11) close part of the remaining gap: they
-carry the legal basis of an attribute as an ELI URI, register authentic sources per Member State,
-and let a scheme require that issuers chain to a named trust anchor. They do not carry the identity
-of an authorised issuer. See Finding 5.
+carry the legal basis of an attribute as an ELI URI, list each Member State's authentic-source
+**verification endpoints** for an attribute, and let a scheme require that issuers chain to a named
+trust anchor. They register **services and trust anchors, not entities** — no field identifies an
+authorised issuer. See Finding 5.
 
 ## The question
 
