@@ -12,7 +12,7 @@ completing an existing design; the private-sector gap is one of missing design.
 
 | Branch | Authentic-source binding | Verifiable today |
 |---|---|---|
-| Pub-EAA (PSBEAA) | `QcPSB` qcStatement in the signing certificate + Commission Art. 45f(3) list | **Specified, not deployable** — no OID for `id-etsi-qcs-QcPSB`; `authSourceIdentification` unconstrained; needs a rulebook value to compare against |
+| Pub-EAA (PSBEAA) | `QcPSB` qcStatement in the signing certificate + Commission Art. 45f(3) list | **Specified, not deployable** — no OID for `id-etsi-qcs-QcPSB`; `authSourceIdentification` unconstrained; needs an expected value in the attestation scheme to compare against |
 | QEAA | none | No |
 | Non-qualified EAA | none | No |
 | PID | separate regime (Commission PID provider list) | Status only |
@@ -60,7 +60,7 @@ source, formatted as a URI (`OJ:` + `EU`/country code + law identifier), and its
 `http://uri.etsi.org/19602/SvcType/PubEAA/Issuance` with status `notified` or `withdrawn`.
 
 By design, then, a verifier receiving a Pub-EAA attestation could establish from the certificate
-and the list which authentic source the issuer is responsible for and under which law. Three things
+and the list which authentic source the issuer is responsible for and under which law. Four things
 stand between that design and a working check:
 
 1. **`id-etsi-qcs-QcPSB` has no OID.** Annex A declares
@@ -72,14 +72,22 @@ stand between that design and a working check:
    recognise; PSB-8.3-01 cannot be met interoperably. The task3 certificate profile already flags
    this (`task3-x509-pki-etsi/certificate-profiles-pid-wallet-eaa-qeaa-psbeaa-providers-etsi-ts-119-412-6.md`).
 2. **`authSourceIdentification` is an unconstrained `UTF8String`** (residual gap 2). Even once
-   encodable, a verifier has nothing standardised to compare it against until a rulebook supplies
-   the expected value (Recommendation 1).
+   encodable, a verifier has nothing standardised to compare it against until the attestation
+   scheme supplies the expected value (Recommendation 1).
 3. **Use of the Pub-EAA route is unconfirmed** (open item 3). If public-register attributes are
    issued as ordinary QEAA, no `QcPSB` is present.
+4. **One authentic source per statement, and no link to attestation types.** `QcPSB` is a single
+   SEQUENCE with one `authSourceIdentification`, and PSB-8.3-01 requires "the QcPSB qcStatement"
+   in the singular. A body responsible for several registers (a tax administration holding the VAT,
+   employer and tax-debt registers) cannot name them all in one statement, and TS 119 412-6 does
+   not say whether to repeat the statement in one certificate or use a certificate per source.
+   `QcPSB` is generic to all public sector bodies: it names a *source*, not the attestation types
+   (`vct`) derived from it. The mapping from source to attestation type exists only if the
+   attestation scheme supplies it (Recommendation 1).
 
 **Consequence for the VAT-ID example:** if the Finnish Tax Administration is notified as a PSBEAA
 provider and the VAT-ID is issued as a Pub-EAA, the question becomes answerable once the OID is
-assigned and the rulebook declares the expected source. The design is right and needs completing,
+assigned and the attestation scheme declares the expected source. The design is right and needs completing,
 not replacing; whether this route is actually used for such attributes is a separate question.
 
 ## Finding 2 — no equivalent exists outside the public sector
@@ -162,8 +170,12 @@ according to the options available in OpenID4VP", with `frameworkType` (`aki`, `
 enforced by the verifier at presentation through OpenID4VP. It constrains which list an issuer must
 appear on, not which entity it must be.
 
-`SchemaMeta` also carries `rulebookURI`, pointing at the human-readable Attestation Rulebook — so
-the catalogue already has the hook that Recommendation 1 needs.
+`SchemaMeta` also carries `rulebookURI`, pointing at the Attestation Rulebook. The rulebook is
+**human-readable by definition** (ARF Topic 12, ARB_33: "an attestation scheme is machine-readable,
+whereas an Attestation Rulebook is human-readable"). It is the right place for a registrar to read
+who is authoritative, but a verifier cannot parse it. Anything a verifier is to compare
+automatically has to live in the machine-readable attestation scheme — `SchemaMeta` itself — and
+`SchemaMeta` has no field for it today (Recommendation 1).
 
 **No field in either catalogue carries an organisation identifier, legal person identity or the
 name of a specific authorised issuer.** `contactInfo` holds contact URIs for the entity that
@@ -197,17 +209,28 @@ attestation-oriented service type URIs. Extending the QEAA branch there to carry
 `QcPSB` — a country, a law reference and an authentic-source identifier — would close the gap with
 a mechanism the ecosystem has already accepted for the public-sector branch.
 
-## Recommendation 1 — rulebooks should declare the expected authoritative issuer
+## Recommendation 1 — declare the expected authoritative issuer, for people and for machines
 
-Attestation rulebooks should state, for each attestation type, the expected authoritative source
-and the basis on which a party may be considered authoritative for it. Without this there is
-nothing for a registrar to check a `providesAttestations` entry against, and nothing for a verifier
-to compare an `authSourceIdentification` to.
+The ARF separates the human-readable Attestation Rulebook from the machine-readable attestation
+scheme (ARB_33). The authority declaration needs both, for two different readers.
 
-This is the cheapest of the available levers and needs no change to certificate profiles, trusted
-list formats or registration procedures. It also supplies the controlled vocabulary that residual
-gaps 2 and 3 require. Where the authoritative source is a public sector body, the rulebook should
-point to the Pub-EAA route rather than inventing a parallel mechanism.
+**1a — in the rulebook, for registrars.** Each Attestation Rulebook should state, in prose, the
+expected authoritative source for the attestation type and the basis on which a party may be
+considered authoritative for it. A registrar is a person applying Article 6(3) of CIR (EU)
+2025/848; this gives them something to check a `providesAttestations` entry against. It needs **no
+specification change** — only rulebook text — and can be done now. Where the authoritative source
+is a public sector body, the rulebook should point to the Pub-EAA route rather than inventing a
+parallel mechanism.
+
+**1b — in the attestation scheme, for verifiers.** A verifier compares certificate fields
+automatically, so it needs the same declaration in machine-readable form, in the Catalogue of
+Schemes entry it already fetches for `trustedAuthorities`. This needs a **TS11 change request**: a
+new, optional `SchemaMeta.authority` object (proposed shape in Annex A). It needs no change to
+certificate profiles, trusted list formats or registration procedures, and it supplies the
+controlled vocabulary that residual gaps 2 and 3 require.
+
+1a without 1b still improves registration. 1b without 1a leaves the machine-readable record without
+the human-readable statement ARB_33 expects every scheme to reference.
 
 ## Recommendation 2 — treat instance-level authority as a separate problem
 
@@ -218,12 +241,12 @@ The two examples are not the same problem and should not be bundled.
 | Authority determined by | attestation type | attribute value |
 | Authoritative party | a fixed, nameable body | the bank identified within the IBAN |
 | Expressible in a certificate or list? | yes | no |
-| Status | designed via Pub-EAA; blocked on `QcPSB` OID + rulebook value | no mechanism at any layer |
+| Status | designed via Pub-EAA; blocked on `QcPSB` OID + `SchemaMeta.authority` value | no mechanism at any layer |
 
-Type-level authority can be published in a certificate, a trusted list or a rulebook. Instance-level
+Type-level authority can be published in a certificate, a trusted list or an attestation scheme. Instance-level
 authority cannot: the authoritative party differs per attestation, so it requires resolution against
 a sectoral registry at verification time. Folding it into the same recommendation would weaken the
-type-level case, which needs only an OID assignment and a rulebook record to complete.
+type-level case, which needs only an OID assignment and an attestation-scheme record to complete.
 
 ## Open items
 
@@ -240,6 +263,12 @@ type-level case, which needs only an OID assignment and a rulebook record to com
    it an OID, and request an assignment (for example under `id-etsi-qcs`, 0.4.0.1862.1, or the
    194126 arc). Until then PSB-8.3-01 cannot be met interoperably and the Pub-EAA route is blocked
    at the certificate layer. Raise together with the Annex C.4 schema defects.
+5. In the same ETSI ESI report, ask how a PSBEAA provider responsible for more than one authentic
+   source should express them: repeated `QcPSB` statements in one certificate, one certificate per
+   source, or a revised `QcPSB` carrying a sequence of sources (Finding 1, point 4).
+6. Raise a TS11 change request for an optional `SchemaMeta.authority` object (Recommendation 1b,
+   Annex A). The Attestation Rulebook is human-readable by definition (ARB_33), so the
+   machine-readable authority declaration a verifier needs has no home until TS11 provides one.
 
 ## Sources
 
@@ -256,13 +285,19 @@ CIR (EU) 2025/848 — secondary summary only, pending primary confirmation (open
 
 ---
 
-# Annex A — proposed shape of the rulebook record
+# Annex A — proposed shape of the authority record
 
-Field names below are a proposal. The **value forms** are not: each reuses an identifier syntax
-that already exists, so that a registrar and a verifier can compare rulebook values directly
-against fields they already hold.
+The record has two homes (Recommendation 1). The **Attestation Rulebook** states it in prose, for
+registrars. The **attestation scheme** carries it as a proposed optional `authority` object in the
+TS11 Catalogue of Schemes entry (`SchemaMeta`), for verifiers. `SchemaMeta` is what a verifier
+already fetches for `trustedAuthorities`; the rulebook is human-readable by definition (ARB_33) and
+is not something a verifier parses.
 
-| Rulebook field | Reuses | Compared against |
+Field names below are a proposal and require a TS11 change request. The **value forms** are not:
+each reuses an identifier syntax that already exists, so that a registrar and a verifier can
+compare record values directly against fields they already hold.
+
+| `authority` field | Reuses | Compared against |
 |---|---|---|
 | `countryOfLegislation` | ISO 3166-1 alpha-2, or `EU` | `QcPSB.countryOfLegislation` (TS 119 412-6 Annex A) |
 | `legalBasis` | ELI URI (TS11 Attribute `legalBasis`); `OJ:` URI form in TS 119 602 Annex H | `QcPSB.legislationIdentification` |
@@ -277,18 +312,28 @@ Every attestation type declares exactly one model. This is what separates the ty
 the instance-level case in the record itself, rather than in prose.
 
 - **`designated`** — a fixed, nameable body is authoritative for the whole attestation type.
-- **`instance-resolved`** — the authoritative party depends on the attribute value; the rulebook
+- **`instance-resolved`** — the authoritative party depends on the attribute value; the record
   states how to derive it and what class the issuer must belong to.
 - **`open`** — no authority constraint beyond the entitlement; any entitled provider may issue.
 
 ## A.2 Worked example — designated (Finnish VAT-ID)
 
-```yaml
-attestation:
-  vct: "urn:eu.europa.ec.eudi:vat:fi:1"
-  format: "dc+sd-jwt"
-  catalogue: "https://ec.europa.eu/eudi/catalogue/schemes/vat-fi-1.json"
+A `SchemaMeta` entry, existing TS11 fields first, then the proposed extension. The rulebook at
+`rulebookURI` states the same authority in prose.
 
+```yaml
+# existing TS11 SchemaMeta fields (abridged)
+id: "<uuid>"
+rulebookURI: "https://example.fi/rulebooks/vat-fi-1"
+supportedFormats: ["dc+sd-jwt"]
+trustedAuthorities:
+  - frameworkType: "etsi_tl"
+    value: "<EUPubEAAProvidersList id>"
+    isLoTE: true
+# attestation type this entry describes (vct → SchemaMeta resolution unverified, Annex G join 1)
+#   vct: "urn:eu.europa.ec.eudi:vat:fi:1"
+
+# proposed TS11 extension
 authority:
   model: designated
   route: PUB_EAA_Provider           # required entitlement (TS 119 475 A.2)
@@ -304,11 +349,13 @@ authority:
 ## A.3 Worked example — instance-resolved (IBAN)
 
 ```yaml
-attestation:
-  vct: "urn:eu.europa.ec.eudi:iban:1"
-  format: "dc+sd-jwt"
-  catalogue: "https://ec.europa.eu/eudi/catalogue/schemes/iban-1.json"
+# existing TS11 SchemaMeta fields (abridged)
+id: "<uuid>"
+rulebookURI: "https://example.eu/rulebooks/iban-1"
+supportedFormats: ["dc+sd-jwt"]
+#   vct: "urn:eu.europa.ec.eudi:iban:1"
 
+# proposed TS11 extension
 authority:
   model: instance-resolved
   route: QEAA_Provider
@@ -329,7 +376,9 @@ verification time. This is the honest encoding of Recommendation 2.
 
 At registration, against each declared `providesAttestations` entry:
 
-1. Resolve the rulebook from the declared `format` + `meta`.
+1. Resolve the attestation scheme from the declared `format` + `meta`, and read its rulebook. The
+   registrar may work from the rulebook prose (Recommendation 1a); an automated registry can read
+   `SchemaMeta.authority` once it exists (1b).
 2. `model: designated` — the applicant's `organizationIdentifier` must match an entry in
    `authority.issuer[]`, **and** its entitlements must include `authority.route`. Otherwise refuse
    the entry, or record it as unverified rather than accepting it silently.
@@ -344,43 +393,55 @@ This is the concrete answer to "what must a registrar verify before accepting a
 
 At presentation, after ordinary signature and trusted-list validation:
 
-1. Resolve the rulebook from the credential's `vct` / `doctype`.
+1. Resolve the `SchemaMeta` entry from the credential's `vct` / `doctype` and read its
+   `authority` object. The verifier does not read the rulebook.
 2. `designated` **via Pub-EAA** — compare `QcPSB.authSourceIdentification` and
-   `QcPSB.countryOfLegislation` from the issuer certificate against the rulebook values.
-   *This path works today.*
+   `QcPSB.countryOfLegislation` from the issuer certificate against the `authority` values.
+   *This path works once `id-etsi-qcs-QcPSB` has an OID (open item 4).*
 3. `designated` **via QEAA** — no `QcPSB` exists, so instead compare the `organizationIdentifier`
    in the issuer certificate subject against `authority.issuer[]`. **This is weaker** — it
-   establishes identity, not legal mandate — but it is available now and needs no change to any
-   certificate profile.
+   establishes identity, not legal mandate — but it needs no change to any certificate profile,
+   only the `SchemaMeta.authority` field.
 4. `instance-resolved` — derive the expected institution from the attribute value per
    `authority.resolution`, then compare against the issuer's identity.
 5. `open` — no further check.
 
-## A.6 Why this is deployable before any specification changes
+## A.6 What can be deployed before the ETSI changes
 
 Step A.5.3 is the significant one. Every legal-person certificate already carries
 `organizationIdentifier` (EN 319 412-3 LEG-4.2.1-6), and its semantics are already structured
-(EN 319 412-1 clause 5). A rulebook that names expected issuers by `organizationIdentifier`
-therefore gives verifiers something concrete to check **today**, for QEAA as well as Pub-EAA,
-without waiting for the ETSI change requested in the escalation draft.
+(EN 319 412-1 clause 5). An attestation scheme that names expected issuers by
+`organizationIdentifier` therefore gives verifiers something concrete to check for QEAA as well as
+Pub-EAA, without waiting for any ETSI change.
 
-That does not make the ETSI request unnecessary: comparing an organisation identifier proves only
-that the expected organisation signed, not that it holds a legal mandate for the attribute, and it
-requires every verifier to fetch and trust the rulebook. It does mean the rulebook recommendation
-can proceed independently of, and ahead of, the specification work.
+It is not free of specification work. It needs the TS11 `SchemaMeta.authority` extension, which is
+a change to the Commission's catalogue format rather than to ETSI's certificate or list formats.
+In order of availability:
+
+1. **Now** — rulebook prose (Recommendation 1a). Registrars can check `providesAttestations`
+   against it. In a pilot, verifiers can also be configured by hand from it; that does not scale
+   beyond a known set of attestation types.
+2. **After a TS11 change** — `SchemaMeta.authority` (1b). Verifiers check automatically, for any
+   attestation type in the catalogue.
+3. **After the ETSI changes** — `QcPSB` with an OID, and an equivalent for QEAA. The check proves
+   a legal mandate, not only identity.
+
+Comparing an organisation identifier proves only that the expected organisation signed, not that
+it holds a legal mandate for the attribute, so step 3 is still needed. Steps 1 and 2 can proceed
+independently of, and ahead of, it.
 
 > **Open point for the group:** A.2 leaves `authSourceIdentification` as a placeholder because no
 > controlled vocabulary exists for it (residual gap 2). The law reference is solved — use the ELI
 > form that TS11 `legalBasis` already specifies. Until the source identifier is solved, `designated`
-> rulebooks should carry `issuer[]` as the operative field and treat `authSourceIdentification` as
-> advisory.
+> authority records should carry `issuer[]` as the operative field and treat
+> `authSourceIdentification` as advisory.
 
 ## A.7 The alternative: scope the scheme with `trustedAuthorities`
 
 TS11 `SchemaMeta.trustedAuthorities` resolves to the trust anchor(s) a credential of that scheme
 must chain to, and is enforced by the verifier through OpenID4VP. It is worth weighing against the
-`issuer[]` approach in A.5.3, because it needs no new field anywhere and the enforcement path
-already exists.
+`issuer[]` approach in A.5.3, because it needs no new field anywhere — not even the TS11
+`authority` extension — and the enforcement path already exists.
 
 It expresses authoritativeness **only if the referenced list is narrow enough**. Pointing a Finnish
 VAT-ID scheme at the general Finnish trusted list says nothing useful. Pointing it at a LoTE that
@@ -388,17 +449,17 @@ contains only the bodies authoritative for that attribute says exactly the right
 
 | | `trustedAuthorities` → narrow LoTE | `issuer[]` → `organizationIdentifier` |
 |---|---|---|
-| New specification needed | none | none |
+| New specification needed | none | TS11 `SchemaMeta.authority` field |
 | Enforcement | verifier, via OpenID4VP | verifier, by comparing the certificate subject |
-| Who maintains it | the Member State, as list operator | the rulebook author |
-| Cost of a change of issuer | reissue the list | revise the rulebook |
+| Who maintains it | the Member State, as list operator | the scheme provider (rulebook + `SchemaMeta`) |
+| Cost of a change of issuer | reissue the list | revise the rulebook and the catalogue entry |
 | Expresses legal mandate | no — list membership only | no — identity only |
 | Works for `instance-resolved` | no | no |
 
 Neither proves a legal mandate; both are proxies. The `trustedAuthorities` route is the stronger of
 the two where a Member State is willing to operate an attribute-scoped list, because enforcement is
-automatic and the list is maintained by the party that knows when authority changes hands. The
-`issuer[]` route is available even where no such list exists.
+automatic, no new field is needed, and the list is maintained by the party that knows when authority
+changes hands. The `issuer[]` route works even where no such list exists, once TS11 carries it.
 
 **This is a question for the group:** is attribute-scoped LoTE maintenance realistic for Member
 States, or does it multiply lists beyond what operators will carry? The answer determines which of
@@ -691,12 +752,13 @@ for an LEI.
 
 ## D.4 Recommendation for instance-resolved attestations
 
-For any attestation type whose rulebook declares `model: instance-resolved` (Annex A.1):
+For any attestation type whose authority record declares `model: instance-resolved` (Annex A.1):
 
 1. **Require the issuer's LEI in the certificate.** The signing certificate's subject
    `organizationIdentifier` shall carry the `LEIXG-` form. This makes step B a string comparison and
-   needs no change to any certificate profile — only a rulebook requirement.
-2. **Name the register in the rulebook.** `authority.resolution.register` shall identify the
+   needs no change to any certificate profile — only a rulebook requirement, checked by the
+   registrar.
+2. **Name the register in the attestation scheme.** `authority.resolution.register` shall identify the
    register used for step A, per country where the format is national.
 3. **State the derivation.** `authority.resolution.method` shall say how the institution identifier
    is extracted from the attribute value.
@@ -759,8 +821,9 @@ is why no amount of trust-list or certificate-profile work reaches it.
 
 Each step is marked with what it depends on:
 
-**[TODAY]** works with what is specified and deployed · **[RULEBOOK]** needs only a rulebook record
-(Annex A) · **[PROFILE]** needs the LoTE profile URI value (Annex C.2) and the XSD fix (C.4) ·
+**[TODAY]** works with what is specified and deployed · **[RULEBOOK]** needs only rulebook text,
+read by a person (Recommendation 1a) · **[SCHEME]** needs the proposed TS11 `SchemaMeta.authority`
+field, read by a verifier (Recommendation 1b, Annex A) · **[PROFILE]** needs the LoTE profile URI value (Annex C.2) and the XSD fix (C.4) ·
 **[SECTORAL]** depends on a register outside the trust framework
 
 ## E.1 Finnish VAT-ID — designated, type-level
@@ -779,7 +842,10 @@ Each step is marked with what it depends on:
 4. **[TODAY]** Separately, it registers as a WRP with entitlement `PUB_EAA_Provider` and
    `providesAttestations` listing the VAT-ID type. The registrar verifies the entitlement against
    the Commission's Article 45f(3) list (CIR (EU) 2025/848 Annex III).
-5. **[RULEBOOK]** The attestation rulebook declares `model: designated`, the expected
+5. **[RULEBOOK]** The attestation rulebook states that the Finnish Tax Administration, as the body
+   responsible for the VAT register, is the authoritative issuer. The registrar checks step 4's
+   `providesAttestations` entry against this.
+5a. **[SCHEME]** The `SchemaMeta` entry carries `authority` with `model: designated`, the expected
    `authSourceIdentification`, the `legalBasis` as an ELI URI, and `issuer[]` with the
    organisational identifier.
 6. **[PROFILE]** The list entry's `TEInformationExtensions` carries `OtherAssociatedBodies` naming
@@ -790,18 +856,18 @@ Each step is marked with what it depends on:
 
 7. **[TODAY]** Verifier validates the SD-JWT VC signature and obtains the signing certificate.
 8. **[TODAY]** Verifier resolves the credential's `vct` to its Catalogue of Schemes entry, reading
-   `rulebookURI` and `trustedAuthorities`.
+   `trustedAuthorities` (and, once it exists, `authority`).
 9. **[TODAY]** OpenID4VP enforces that the issuer chains to a trust anchor named in
    `trustedAuthorities`.
 10. **[BLOCKED — no OID]** Verifier reads `QcPSB` from the certificate.
-11. **[RULEBOOK]** Verifier compares `QcPSB.authSourceIdentification` and `countryOfLegislation`
-    against the values the rulebook declares. **This is the authoritativeness check.**
+11. **[SCHEME]** Verifier compares `QcPSB.authSourceIdentification` and `countryOfLegislation`
+    against the values `SchemaMeta.authority` declares. **This is the authoritativeness check.**
 12. **[PROFILE]** Optionally, verifier fetches the LoTE, locates the entity by certificate identity
     and confirms the associated body and its type identifier.
 
 **Status: close, but blocked at step 3.** Steps 1–2, 4 and 7–9 work today. Steps 3 and 10 need an
-OID for `id-etsi-qcs-QcPSB` (open item 4). Beyond that the only additions are a rulebook record and,
-optionally, one profile URI value. **Once unblocked, the authority statement travels with the
+OID for `id-etsi-qcs-QcPSB` (open item 4). Beyond that the additions are rulebook text, the TS11
+`SchemaMeta.authority` field and, optionally, one profile URI value. **Once unblocked, the authority statement travels with the
 credential**, inside the certificate — no external lookup is required at verification time.
 
 ## E.2 IBAN — instance-resolved
@@ -817,26 +883,28 @@ credential**, inside the certificate — no external lookup is required at verif
    sector body), no `OtherAssociatedBodies` (that extension exists only in TS 119 602), and no
    registered QEAA providers LoTE type at all. Steps 1 and 2 establish that the bank is a
    legitimate qualified provider — nothing more.
-4. **[RULEBOOK]** The rulebook declares `model: instance-resolved`, requires the issuer's signing
-   certificate to carry its LEI in the subject `organizationIdentifier` (`LEIXG-` form), and names
-   the resolution method and register.
+4. **[RULEBOOK]** The rulebook requires the issuer's signing certificate to carry its LEI in the
+   subject `organizationIdentifier` (`LEIXG-` form). The registrar checks this.
+4a. **[SCHEME]** The `SchemaMeta` entry carries `authority` with `model: instance-resolved` and
+   names the resolution method and register.
 
 ### Verifying a presented attestation
 
 5. **[TODAY]** Verifier validates the signature, obtains the certificate and reads
    `organizationIdentifier` from the subject.
-6. **[TODAY]** Verifier resolves the `vct` to the catalogue entry and the rulebook.
+6. **[SCHEME]** Verifier resolves the `vct` to the catalogue entry and reads its `authority`
+   object.
 7. **[TODAY]** Verifier reads the disclosed IBAN value from the credential.
 8. **[SECTORAL]** Verifier derives the institution identifier from the BBAN, whose layout is
    national and differs per country.
 9. **[SECTORAL]** Verifier resolves that institution identifier to a legal entity and its LEI, via
-   the register the rulebook names. **This is the fragile step** — per-country registers of varying
+   the register `authority.resolution.register` names. **This is the fragile step** — per-country registers of varying
    quality, access terms and availability, with no single free authoritative EU-wide directory.
-10. **[RULEBOOK]** Verifier compares the resolved LEI against the certificate's
+10. **[SCHEME]** Verifier compares the resolved LEI against the certificate's
     `organizationIdentifier`. **This is the authoritativeness check.**
 
-**Status: partial.** Steps 5–7 work today and step 10 becomes a string comparison once step 4 is a
-rulebook requirement. Steps 8 and 9 sit outside the trust framework entirely and carry no
+**Status: partial.** Steps 5 and 7 work today; steps 6 and 10 need the TS11 `authority` field, and
+step 10 is a string comparison once step 4 is a rulebook requirement. Steps 8 and 9 sit outside the trust framework entirely and carry no
 availability guarantee.
 
 ## E.3 The asymmetry
@@ -847,7 +915,7 @@ availability guarantee.
 | Lookup needed at verification time | none | two external resolutions |
 | Depends on registers outside eIDAS | no | yes, per country |
 | Fails if a register is unavailable | no | yes |
-| Blocking work | `QcPSB` OID assignment and rulebook record | rulebook record **and** sectoral resolution |
+| Blocking work | `QcPSB` OID assignment, rulebook text and TS11 `authority` field | rulebook text, TS11 `authority` field **and** sectoral resolution |
 
 The difference is not one of degree. For the public-sector case the trust framework is designed to carry
 the authority claim with the credential, so verification is self-contained. For the instance-level case
@@ -863,8 +931,9 @@ trust group should say so rather than imply the gap is of the same kind.
 # Annex F — the full VAT-ID chain, verifier to trusted list field
 
 Every hop, with the concrete field at each end. `[P]` marks a link that needs the profile URI value
-(Annex C.2); `[R]` marks one that needs the rulebook record (Annex A). Everything unmarked exists
-today.
+(Annex C.2); `[R]` marks one that needs the proposed `SchemaMeta.authority` field (Annex A).
+Everything unmarked exists today. `SchemaMeta.rulebookURI` still points at the human-readable
+rulebook, which registrars read; the verifier does not, so it is left out of the diagram.
 
 ```
   PRESENTED CREDENTIAL (SD-JWT VC)
@@ -874,7 +943,7 @@ today.
                                │          │
                                │          ▼
                                │   CATALOGUE OF SCHEMES (TS11 SchemaMeta)
-                               │     ├── rulebookURI ──────────────► RULEBOOK  [R]
+                               │     ├── authority ────────────────► AUTHORITY  [R]
                                │     └── trustedAuthorities[]            │
                                │           {frameworkType:"etsi_tl",     │ model: designated
                                │            value:"<LoTE id>",           │ route: PUB_EAA_Provider
@@ -923,13 +992,13 @@ today.
 | # | From | To | Join key | Status |
 |---|---|---|---|---|
 | 1 | credential `vct` | Catalogue of Schemes `SchemaMeta` | attestation type identifier | today |
-| 2 | `SchemaMeta.rulebookURI` | rulebook record | URL | today (record is **[R]**) |
+| 2 | `SchemaMeta` entry | `SchemaMeta.authority` | object containment | **[R]** — proposed TS11 field |
 | 3 | `SchemaMeta.trustedAuthorities[].value` | the LoTE to trust | list identifier, `isLoTE:true` | today |
 | 4 | credential `x5c` | `ServiceDigitalIdentity/DigitalId/X509Certificate` | certificate equality | today |
 | 5 | service entry | parent `TrustedEntityInformation` | XML containment | today |
-| 6 | cert `QcPSB.authSourceIdentification` | rulebook `authSourceIdentification` | string comparison | **[R]** |
-| 7 | cert `subject.organizationIdentifier` | `TETradeName` / rulebook `issuer[]` | organisational identifier | **[R]** |
-| 8 | cert `QcPSB.legislationIdentification` | `TETradeName` `OJ:` value / rulebook `legalBasis` | law reference | **[R]**, see F.3 |
+| 6 | cert `QcPSB.authSourceIdentification` | `authority.authSourceIdentification` | string comparison | **[R]** |
+| 7 | cert `subject.organizationIdentifier` | `TETradeName` / `authority.issuer[]` | organisational identifier | **[R]** |
+| 8 | cert `QcPSB.legislationIdentification` | `TETradeName` `OJ:` value / `authority.legalBasis` | law reference | **[R]**, see F.3 |
 | 9 | entity entry | the authentic source itself | `AssociatedBodyTypeIdentifier` | **[P]** |
 
 ## F.2 What each check actually establishes
@@ -937,8 +1006,8 @@ today.
 - Joins 3–5 establish **status**: the issuer is a notified Pub-EAA provider in good standing. This
   is what works today and is all that works today.
 - Join 6 establishes **authoritativeness**: the issuer's declared authentic source is the one the
-  rulebook says it should be for this attestation type. This is the check the whole note is about.
-- Join 7 establishes **identity consistency** across certificate, list and rulebook.
+  attestation scheme says it should be for this attestation type. This is the check the whole note is about.
+- Join 7 establishes **identity consistency** across certificate, list and attestation scheme.
 - Join 9 makes the authentic source explicit in the list rather than only in the certificate, so it
   can be inspected without parsing a qcStatement.
 
@@ -977,8 +1046,8 @@ invention), or **[ASSUMED]** (taken as given without a citation found — needs 
 | 1 | `SchemaMeta` in Catalogue of Schemes | **[SPEC]** | TS11 |
 | 1 | **`vct` resolves to a `SchemaMeta` entry** | **[ASSUMED]** | TS11's `SchemaMeta` fields are `id` (UUID), `version`, `rulebookURI`, `trustedAuthorities`, `attestationLoS`, `bindingType`, `supportedFormats`, `schemaURIs`. **No `vct` field was found.** The resolution may run through `schemaURIs[].uri`, but this note did not verify it. |
 | 2 | `SchemaMeta.rulebookURI` | **[SPEC]** | TS11 |
-| 2 | Attestation Rulebook as a document | **[SPEC]** | ARF |
-| 2 | **The record structure inside it** (`model`, `route`, `authority`, `issuer[]`, `resolution`) | **[PROPOSED]** | Annex A — invented entirely by this note |
+| 2 | Attestation Rulebook as a human-readable document | **[SPEC]** | ARF Topic 12, ARB_33 |
+| 2 | **`SchemaMeta.authority` and its structure** (`model`, `route`, `issuer[]`, `resolution`) | **[PROPOSED]** | Annex A — invented entirely by this note; needs a TS11 change request |
 | 3 | `trustedAuthorities[]`, `frameworkType`, `value`, `isLoTE` | **[SPEC]** | TS11: "resolve to the applicable trust management scheme(s) … or trust anchor(s) … according to the options available in OpenID4VP" |
 | 3 | Using it to select the LoTE | **[SPEC]** | that is its stated purpose |
 | 4 | `x5c` in the JOSE header | **[SPEC]** | JOSE |
@@ -986,11 +1055,11 @@ invention), or **[ASSUMED]** (taken as given without a citation found — needs 
 | 4 | Matching a signing certificate to a list entry | **[SPEC]** | standard trusted list validation; see ETSI TS 119 615 |
 | 5 | Service entry to parent `TrustedEntityInformation` | **[SPEC]** | XML containment in TS 119 602 |
 | 6 | `QcPSB.authSourceIdentification` | **[SPEC]**, **not encodable** | TS 119 412-6 PSB-8.3-03, Annex A ASN.1; `id-etsi-qcs-QcPSB` has no OID |
-| 6 | Rulebook's expected `authSourceIdentification` | **[PROPOSED]** | Annex A |
+| 6 | `authority.authSourceIdentification` | **[PROPOSED]** | Annex A |
 | 6 | **Comparing the two as a verification step** | **[PROPOSED]** | no specification describes or requires this check |
 | 7 | `subject.organizationIdentifier` in the certificate | **[SPEC]** | EN 319 412-3 LEG-4.2.1-6 |
 | 7 | `TETradeName` carrying the official registration identifier | **[SPEC]** | TS 119 602 Annex H, Pub-EAA profile |
-| 7 | Rulebook `issuer[].organizationIdentifier` | **[PROPOSED]** | Annex A |
+| 7 | `authority.issuer[].organizationIdentifier` | **[PROPOSED]** | Annex A |
 | 7 | The three-way comparison | **[PROPOSED]** | — |
 | 8 | `QcPSB.legislationIdentification` | **[SPEC]**, **not encodable** | TS 119 412-6; same missing OID |
 | 8 | `TETradeName` `OJ:` law reference format | **[SPEC]** | TS 119 602 Annex H, quoted verbatim |
@@ -1025,12 +1094,12 @@ it for this purpose.
 **Specified but not encodable:** the `QcPSB` fields (joins 6, 8). The structure is defined, but its
 statement identifier `id-etsi-qcs-QcPSB` has no OID, so no certificate can carry it interoperably.
 
-**Does not exist:** the rulebook record (joins 2, 6, 7), the `AssociatedBodyType` URI value
+**Does not exist:** the `SchemaMeta.authority` field (joins 2, 6, 7), the `AssociatedBodyType` URI value
 (join 9), and every comparison step that constitutes the actual authoritativeness check.
 
 **Unverified:** join 1. The note assumes a credential's `vct` resolves to a Catalogue of Schemes
 entry. That resolution was not confirmed against TS11 and should be, because the whole chain starts
-there — if `vct` does not resolve to `SchemaMeta`, the verifier cannot reach the rulebook or
+there — if `vct` does not resolve to `SchemaMeta`, the verifier cannot reach `authority` or
 `trustedAuthorities` at all, and joins 2, 3, 6 and 7 have no entry point.
 
 ---
@@ -1060,7 +1129,7 @@ that it uses PKI.
 
 ```
   PRESENTED IBAN ATTESTATION
-    ├── vct ────────────────► Catalogue of Schemes ──► rulebookURI ──► RULEBOOK  [R]
+    ├── vct ────────────────► Catalogue of Schemes ──► authority ────► AUTHORITY  [R]
     │                              └── trustedAuthorities[] ──┐         model: instance-resolved
     ├── claim: iban = "FI21…"                                 │         resolution.method
     └── x5c ──────────┐                                       │         resolution.register
