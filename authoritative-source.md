@@ -4,13 +4,15 @@
 
 ## Summary
 
-The mechanism for binding an issuer to an authentic source **already exists and is complete**
-for public-sector attestations. It does **not** exist for QEAA or non-qualified EAA. The gap is
-therefore much narrower than first stated, and lands specifically on private-sector issuers.
+A mechanism for binding an issuer to an authentic source **is specified** for public-sector
+attestations, but it is **not yet deployable**: the `QcPSB` qcStatement it relies on has no
+assigned OID, and its authentic-source field has no controlled vocabulary. No equivalent is
+specified at all for QEAA or non-qualified EAA. The public-sector gap is therefore one of
+completing an existing design; the private-sector gap is one of missing design.
 
 | Branch | Authentic-source binding | Verifiable today |
 |---|---|---|
-| Pub-EAA (PSBEAA) | `QcPSB` qcStatement in the signing certificate + Commission Art. 45f(3) list | **Yes** |
+| Pub-EAA (PSBEAA) | `QcPSB` qcStatement in the signing certificate + Commission Art. 45f(3) list | **Specified, not deployable** — no OID for `id-etsi-qcs-QcPSB`; `authSourceIdentification` unconstrained; needs a rulebook value to compare against |
 | QEAA | none | No |
 | Non-qualified EAA | none | No |
 | PID | separate regime (Commission PID provider list) | Status only |
@@ -32,7 +34,7 @@ The framework answers **authenticity** (is this entity real, registered, operati
 The question is whether it answers **authoritativeness** (is this entity the source of record for
 this attribute).
 
-## Finding 1 — for public sector bodies, it is already solved
+## Finding 1 — for public sector bodies, it is specified but not yet deployable
 
 ETSI TS 119 412-6 clause 8.3 requires the PSBEAA provider's certificate to carry a `QcPSB`
 qcStatement:
@@ -56,12 +58,28 @@ the reference to the Union or national law establishing it as responsible for th
 source, formatted as a URI (`OJ:` + `EU`/country code + law identifier), and its service carries
 `http://uri.etsi.org/19602/SvcType/PubEAA/Issuance` with status `notified` or `withdrawn`.
 
-So a verifier receiving a Pub-EAA attestation can already establish, from the certificate and the
-list alone, which authentic source the issuer is responsible for and under which law.
+By design, then, a verifier receiving a Pub-EAA attestation could establish from the certificate
+and the list which authentic source the issuer is responsible for and under which law. Three things
+stand between that design and a working check:
+
+1. **`id-etsi-qcs-QcPSB` has no OID.** Annex A declares
+   `esi4-qcStatement-10 QC-STATEMENT ::= { SYNTAX QcPSB IDENTIFIED BY id-etsi-qcs-QcPSB }`, but the
+   module never assigns `id-etsi-qcs-QcPSB` a value and does not import it from EN 319 412-5. Only
+   `id-etsi-qct-pid` (0.4.0.194126.1.1) and `id-etsi-qct-wal` (0.4.0.194126.1.2) are assigned. This
+   is confirmed against the published PDF (`ts_11941206v010101p.pdf`), not a transcription error.
+   Without an OID, a CA cannot emit a `QcPSB` statement that an independent verifier will
+   recognise; PSB-8.3-01 cannot be met interoperably. The task3 certificate profile already flags
+   this (`task3-x509-pki-etsi/certificate-profiles-pid-wallet-eaa-qeaa-psbeaa-providers-etsi-ts-119-412-6.md`).
+2. **`authSourceIdentification` is an unconstrained `UTF8String`** (residual gap 2). Even once
+   encodable, a verifier has nothing standardised to compare it against until a rulebook supplies
+   the expected value (Recommendation 1).
+3. **Use of the Pub-EAA route is unconfirmed** (open item 3). If public-register attributes are
+   issued as ordinary QEAA, no `QcPSB` is present.
 
 **Consequence for the VAT-ID example:** if the Finnish Tax Administration is notified as a PSBEAA
-provider and the VAT-ID is issued as a Pub-EAA, the question is answerable today. The problem is
-not missing infrastructure; it is whether this route is actually used for such attributes.
+provider and the VAT-ID is issued as a Pub-EAA, the question becomes answerable once the OID is
+assigned and the rulebook declares the expected source. The design is right and needs completing,
+not replacing; whether this route is actually used for such attributes is a separate question.
 
 ## Finding 2 — no equivalent exists outside the public sector
 
@@ -199,12 +217,12 @@ The two examples are not the same problem and should not be bundled.
 | Authority determined by | attestation type | attribute value |
 | Authoritative party | a fixed, nameable body | the bank identified within the IBAN |
 | Expressible in a certificate or list? | yes | no |
-| Status | solvable today via Pub-EAA | no mechanism at any layer |
+| Status | designed via Pub-EAA; blocked on `QcPSB` OID + rulebook value | no mechanism at any layer |
 
 Type-level authority can be published in a certificate, a trusted list or a rulebook. Instance-level
 authority cannot: the authoritative party differs per attestation, so it requires resolution against
 a sectoral registry at verification time. Folding it into the same recommendation would weaken the
-type-level case, which is close to complete.
+type-level case, which needs only an OID assignment and a rulebook record to complete.
 
 ## Open items
 
@@ -217,12 +235,17 @@ type-level case, which is close to complete.
    registration, address) through the Pub-EAA route, or issuing them as ordinary QEAA and so
    bypassing the `QcPSB` binding. If the latter, the gap is one of practice rather than of
    specification.
+4. Report to ETSI ESI that TS 119 412-6 V1.1.1 Annex A uses `id-etsi-qcs-QcPSB` without assigning
+   it an OID, and request an assignment (for example under `id-etsi-qcs`, 0.4.0.1862.1, or the
+   194126 arc). Until then PSB-8.3-01 cannot be met interoperably and the Pub-EAA route is blocked
+   at the certificate layer. Raise together with the Annex C.4 schema defects.
 
 ## Sources
 
 Local copies under `references/etsi/`:
 
-- `ETSI_TS_119_412-6_V1.1.1.md` clause 8.3 and Annex A — `QcPSB`, `authSourceIdentification`
+- `ETSI_TS_119_412-6_V1.1.1.md` clause 8.3 and Annex A — `QcPSB`, `authSourceIdentification`;
+  `id-etsi-qcs-QcPSB` has no OID assignment (checked against `ts_11941206v010101p.pdf`)
 - `ETSI_TS_119_475.md` GEN-5.2.4-05, Table 8 and NOTE 2, Annex I.13 — `providesAttestations`
 - `ts_119602v010101p.md` Annex H — Pub-EAA `TETradeName` law reference, `SvcType/PubEAA/Issuance`
 - `ts_119612v020401p.md` clauses 5.5.9, 5.5.9.4 — Service information extensions
@@ -749,7 +772,7 @@ Each step is marked with what it depends on:
 2. **[TODAY]** Its service entry carries `ServiceTypeIdentifier`
    `http://uri.etsi.org/19602/SvcType/PubEAA/Issuance`, `ServiceStatus` `notified`, and the signing
    certificate in `ServiceDigitalIdentity`.
-3. **[TODAY]** The signing certificate carries the `QcPSB` qcStatement (TS 119 412-6
+3. **[BLOCKED — no OID]** The signing certificate carries the `QcPSB` qcStatement (TS 119 412-6
    PSB-8.3-01…04): `countryOfLegislation` = `FI`, `authSourceIdentification` = the VAT register,
    `legislationIdentification` = the establishing act.
 4. **[TODAY]** Separately, it registers as a WRP with entitlement `PUB_EAA_Provider` and
@@ -769,15 +792,16 @@ Each step is marked with what it depends on:
    `rulebookURI` and `trustedAuthorities`.
 9. **[TODAY]** OpenID4VP enforces that the issuer chains to a trust anchor named in
    `trustedAuthorities`.
-10. **[TODAY]** Verifier reads `QcPSB` from the certificate.
+10. **[BLOCKED — no OID]** Verifier reads `QcPSB` from the certificate.
 11. **[RULEBOOK]** Verifier compares `QcPSB.authSourceIdentification` and `countryOfLegislation`
     against the values the rulebook declares. **This is the authoritativeness check.**
 12. **[PROFILE]** Optionally, verifier fetches the LoTE, locates the entity by certificate identity
     and confirms the associated body and its type identifier.
 
-**Status: complete.** Steps 1–4 and 7–10 work today. The only additions are a rulebook record and,
-optionally, one profile URI value. **The authority statement travels with the credential**, inside
-the certificate — no external lookup is required at verification time.
+**Status: close, but blocked at step 3.** Steps 1–2, 4 and 7–9 work today. Steps 3 and 10 need an
+OID for `id-etsi-qcs-QcPSB` (open item 4). Beyond that the only additions are a rulebook record and,
+optionally, one profile URI value. **Once unblocked, the authority statement travels with the
+credential**, inside the certificate — no external lookup is required at verification time.
 
 ## E.2 IBAN — instance-resolved
 
@@ -822,15 +846,15 @@ availability guarantee.
 | Lookup needed at verification time | none | two external resolutions |
 | Depends on registers outside eIDAS | no | yes, per country |
 | Fails if a register is unavailable | no | yes |
-| Blocking work | rulebook record | rulebook record **and** sectoral resolution |
+| Blocking work | `QcPSB` OID assignment and rulebook record | rulebook record **and** sectoral resolution |
 
-The difference is not one of degree. For the public-sector case the trust framework carries the
-authority claim with the credential, so verification is self-contained. For the instance-level case
+The difference is not one of degree. For the public-sector case the trust framework is designed to carry
+the authority claim with the credential, so verification is self-contained. For the instance-level case
 it carries nothing, and every verifier must independently reach a banking register that no part of
 the framework guarantees.
 
 Recommending the same mechanism for both would obscure this. The type-level case is close to
-finished; the instance-level case needs a sectoral resolution service that does not exist, and the
+finished, pending the `QcPSB` OID; the instance-level case needs a sectoral resolution service that does not exist, and the
 trust group should say so rather than imply the gap is of the same kind.
 
 ---
@@ -960,14 +984,14 @@ invention), or **[ASSUMED]** (taken as given without a citation found — needs 
 | 4 | `ServiceDigitalIdentity/DigitalId/X509Certificate` | **[SPEC]** | TS 119 602 clause 6.6.3.1; present in `1960201.xsd` |
 | 4 | Matching a signing certificate to a list entry | **[SPEC]** | standard trusted list validation; see ETSI TS 119 615 |
 | 5 | Service entry to parent `TrustedEntityInformation` | **[SPEC]** | XML containment in TS 119 602 |
-| 6 | `QcPSB.authSourceIdentification` | **[SPEC]** | TS 119 412-6 PSB-8.3-03, Annex A ASN.1 |
+| 6 | `QcPSB.authSourceIdentification` | **[SPEC]**, **not encodable** | TS 119 412-6 PSB-8.3-03, Annex A ASN.1; `id-etsi-qcs-QcPSB` has no OID |
 | 6 | Rulebook's expected `authSourceIdentification` | **[PROPOSED]** | Annex A |
 | 6 | **Comparing the two as a verification step** | **[PROPOSED]** | no specification describes or requires this check |
 | 7 | `subject.organizationIdentifier` in the certificate | **[SPEC]** | EN 319 412-3 LEG-4.2.1-6 |
 | 7 | `TETradeName` carrying the official registration identifier | **[SPEC]** | TS 119 602 Annex H, Pub-EAA profile |
 | 7 | Rulebook `issuer[].organizationIdentifier` | **[PROPOSED]** | Annex A |
 | 7 | The three-way comparison | **[PROPOSED]** | — |
-| 8 | `QcPSB.legislationIdentification` | **[SPEC]** | TS 119 412-6 |
+| 8 | `QcPSB.legislationIdentification` | **[SPEC]**, **not encodable** | TS 119 412-6; same missing OID |
 | 8 | `TETradeName` `OJ:` law reference format | **[SPEC]** | TS 119 602 Annex H, quoted verbatim |
 | 8 | TS11 `legalBasis`, ELI URI | **[SPEC]** | TS11, "SHOULD be an ELI URI" |
 | 8 | **The three-way encoding incompatibility** | **[SPEC-derived]** | an observation about published specifications, not an invention — the three formats are as cited |
@@ -994,8 +1018,11 @@ invention), or **[ASSUMED]** (taken as given without a citation found — needs 
 **Exists and works today:** joins 3, 4, 5 — the issuer's status as a notified Pub-EAA provider.
 Every field in those joins is specified and deployed.
 
-**Exists but is unused:** the `QcPSB` fields (join 6, 8) and `OtherAssociatedBodies` (join 9). These
-are specified; nothing currently reads them for this purpose.
+**Exists but is unused:** `OtherAssociatedBodies` (join 9). It is specified; nothing currently reads
+it for this purpose.
+
+**Specified but not encodable:** the `QcPSB` fields (joins 6, 8). The structure is defined, but its
+statement identifier `id-etsi-qcs-QcPSB` has no OID, so no certificate can carry it interoperably.
 
 **Does not exist:** the rulebook record (joins 2, 6, 7), the `AssociatedBodyType` URI value
 (join 9), and every comparison step that constitutes the actual authoritativeness check.
